@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 from pathlib import Path
 from typing import Literal, Union
@@ -9,7 +9,7 @@ from decimal import Decimal
 from base_config import BaseConfig
 
 
-class TestTypeChecking(TestCase):
+class TypeCheckingTest(TestCase):
     def test_singleton_type(self):
         @dataclass
         class Config(BaseConfig):
@@ -66,6 +66,14 @@ class TestTypeChecking(TestCase):
                 attr1: '3'
             Config3(b'abc')
 
+        with self.assertRaises(
+            TypeError, msg='Should catch default value with incorrect type.',
+        ):
+            @dataclass
+            class Config4(BaseConfig):
+                attr1: str = 3
+            Config4()
+
     def test_literal_type(self):
         @dataclass
         class Config(BaseConfig):
@@ -99,13 +107,13 @@ class TestTypeChecking(TestCase):
                 model_version: Literal[1, 2, '3']
             Config1(2)
 
-        # with self.assertRaises(
-        #     TypeError, msg='`Literal` type should not be empty.'
-        # ):
-        #     @dataclass
-        #     class Config2(BaseConfig):
-        #         model_version: Literal[]
-        #     Config2(2)
+        with self.assertRaises(
+            TypeError, msg='`Should catch erroneous default `Literal` value.'
+        ):
+            @dataclass
+            class Config2(BaseConfig):
+                model_version: Literal[1, 2, 3, 4] = 0
+            Config2()
 
         with self.assertRaises(
             TypeError, msg='Should detect not defined `Literal` values'
@@ -228,3 +236,23 @@ class TestTypeChecking(TestCase):
             class Config9(BaseConfig):
                 attr1: list
             Config9([1, 2., 0.3])
+
+        with self.assertRaises(
+            TypeError, msg='All elements in a list should match the type.',
+        ):
+            @dataclass
+            class Config10(BaseConfig):
+                attr1: list[int] = field(
+                    default_factory=lambda: [1, 2.0, 3]
+                )
+            Config10()
+
+        with self.assertRaises(
+            TypeError, msg='`list` field type should receive a list.',
+        ):
+            @dataclass
+            class Config11(BaseConfig):
+                attr1: list[int] = field(
+                    default_factory=lambda: (1, 2.0, 3)
+                )
+            Config11()

@@ -1,20 +1,24 @@
+"""
+`BaseConfig`: Project configuration management
+with cli argument parsing and JSON import/export.
+"""
+
 import json
 import os
 from abc import ABC
 from argparse import ArgumentParser
-from dataclasses import MISSING, asdict, dataclass, fields
+from dataclasses import KW_ONLY, MISSING, asdict, dataclass, field, fields
 from decimal import Decimal
 from fractions import Fraction
 from itertools import pairwise
 from pathlib import Path
-from pprint import pprint
-from types import UnionType
-from typing import Any, Literal, Union, get_args, get_origin
+from typing import Any, Literal, get_args, get_origin
 
 __all__ = ['BaseConfig']
 
 _supported_singleton_types = [
-    int, Fraction, Decimal, float, complex, str, Path, bool,
+    int, Fraction, Decimal, float, complex,
+    str, Path, bool,
 ]
 """Supported singleton types.
 These types are not container types,
@@ -22,10 +26,7 @@ and they all accepts a single string for construction.
 """
 
 _supported_types = [
-    # Sequential type with fixed values. All choices must have the same type.
-    Literal,
-    # Sequential type with non_fixed values. Only one type can exist.
-    list,
+    Literal, list,
 ] + _supported_singleton_types
 """All supported types in `BaseConfig` class"""
 
@@ -34,7 +35,7 @@ _JSON_CUSTOM_TYPE_KEY = '__custom_type__'
 _JSON_CUSTOM_TYPE_VALUE = '__value__'
 
 
-class BaseConfigJSONEncoder(json.JSONEncoder):
+class _BaseConfigJSONEncoder(json.JSONEncoder):
     def default(self, o: Any) -> Any:
         if isinstance(o, complex):
             return {
@@ -59,7 +60,7 @@ class BaseConfigJSONEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-def base_config_json_decode_object_hook(dct: dict[str, Any]):
+def _base_config_json_decode_object_hook(dct: dict[str, Any]):
     if (
         _JSON_CUSTOM_TYPE_KEY in dct and
         _JSON_CUSTOM_TYPE_VALUE in dct and
@@ -88,48 +89,61 @@ class BaseConfig(ABC):
     def from_json(cls, json_file: os.PathLike):
         with open(json_file, 'r') as f:
             incoming_data = json.load(
-                f, object_hook=base_config_json_decode_object_hook
+                f, object_hook=_base_config_json_decode_object_hook
             )
         return cls.from_dict(incoming_data)
 
     @classmethod
-    def from_program_arguments(
+    def parse_args(
         cls, arguments: list[str] | None = None,
         parser: ArgumentParser | None = None,
     ):
+        parser = cls.forge_parser(parser)
+        args = parser.parse_args(arguments)
+        return cls.from_dict(vars(args))
+
+    @classmethod
+    def forge_parser(cls, parser: ArgumentParser | None = None):
         if parser is None:
             parser = ArgumentParser(
                 prog=cls.__name__,
                 description=cls.__doc__,
             )
-        args = parser.parse_args(arguments)
-        return cls.from_dict(vars(args))
+        for arg_name, arg_options in cls.argument_parser_named_options():
+            print(f'{arg_name = }, {arg_options = }')
+            parser.add_argument(arg_name, **arg_options)
+        return parser
 
     @classmethod
-    def forge_argument_parser_named_options(cls):
+    def argument_parser_named_options(cls):
         for field in fields(cls):
             field_type = field.type
             field_name = field.name
-            field_default_value = field.default
+
+            is_kw = field.kw_only or get_origin(field_type) is list
 
             arg_name = '--' + field_name.replace('_', '-') \
-                if field.kw_only or get_origin(field_type) is list \
-                else field_name
+                if is_kw else field_name
 
-            arg_options = dict()
-            if field_default_value != MISSING:
-                arg_options['default'] = field_default_value
-                arg_options['required'] = False
-            else:
+            arg_options: dict[str, Any] = dict()
+            if field.default != MISSING:
+                arg_options['default'] = field.default
+                if is_kw:
+                    arg_options['required'] = False
+            elif is_kw:
                 arg_options['required'] = True
 
             if get_origin(field_type) is list:
-                arg_options['nargs'] = '*'
                 arg_options['type'] = get_args(field_type)[0]
+                arg_options['nargs'] = '*'
             elif get_origin(field_type) is Literal:
+                arg_options['type'] = type(get_args(field_type)[0])
                 arg_options['choices'] = get_args(field_type)
-            else:
+            elif field_type is not bool:
                 arg_options['type'] = field_type
+            else:
+                assert field_type is bool
+                arg_options['action'] = 'store_true'
 
             yield arg_name, arg_options
 
@@ -141,7 +155,7 @@ class BaseConfig(ABC):
 
     def to_json(self, json_file: os.PathLike):
         with open(json_file, 'w') as f:
-            json.dump(self.to_dict(), f, cls=BaseConfigJSONEncoder)
+            json.dump(self.to_dict(), f, cls=_BaseConfigJSONEncoder)
 
     def _validate_instance_variable_types(self):
         for field in fields(self):
@@ -221,3 +235,26 @@ class BaseConfig(ABC):
                 raise TypeError(
                     f'`{field_type}` is not supported by `BaseConfig`.'
                 )
+
+
+if __name__ == '__main__':
+    @dataclass
+    class Config(BaseConfig):
+        epochs: int
+        learning_rates: list[Decimal]
+        lpf_pole: complex
+        epsilon: float
+        optimizer: Literal['Adam', 'AdamW', 'RMSProp']
+        model_version: Literal[1, 2, 3] = 2
+        random_seed: int = 1
+
+        _: KW_ONLY
+        batch_size: int
+        debug: bool = True
+        dataset_path: Path = Path.cwd() / 'datasets'
+        ratios: list[Fraction] = field(
+            default_factory=lambda: [Fraction(1, 3)]
+        )
+    
+    parser = Config.forge_parser()
+    parser.print_help()
