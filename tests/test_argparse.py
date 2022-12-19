@@ -89,10 +89,10 @@ class ArgumentParsingTest(TestCase):
             'keyword CLI arguments.'
         )
 
-    def test_argument_parser_options(self):
-        for arg_name, arg_options in Config.argument_parser_named_options():
-            self.assertIn(
-                'type', arg_options,
-                'All arguments should have its type specified.'
-            )
-            if arg_name == 'epochs':
+    # def test_argument_parser_options(self):
+    #     for arg_name, arg_options in Config.argument_parser_named_options():
+    #         self.assertIn(
+    #             'type', arg_options,
+    #             'All arguments should have its type specified.'
+    #         )
+    #         if arg_name == 'epochs':

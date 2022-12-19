@@ -206,7 +206,7 @@ class TypeCheckingTest(TestCase):
             Config5([['a', 'a', 'b']])
 
         with self.assertRaises(
-            TypeError, msg='Cannot have non-supported singleton types in list.'
+            TypeError, msg='Cannot have not supported singleton types in list.'
         ):
             @dataclass
             class Config6(BaseConfig):
@@ -214,7 +214,7 @@ class TypeCheckingTest(TestCase):
             Config6([None, None, None])
 
         with self.assertRaises(
-            TypeError, msg='`list` field type should receive a list',
+            TypeError, msg='All elements in a list should match the type.',
         ):
             @dataclass
             class Config7(BaseConfig):
@@ -256,3 +256,11 @@ class TypeCheckingTest(TestCase):
                     default_factory=lambda: (1, 2.0, 3)
                 )
             Config11()
+
+        with self.assertRaises(
+            TypeError, msg='`list` cannot accept booleans.',
+        ):
+            @dataclass
+            class Config12(BaseConfig):
+                attr1: list[bool]
+            Config12([True, True, False])

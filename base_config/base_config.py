@@ -14,20 +14,34 @@ from itertools import pairwise
 from pathlib import Path
 from typing import Any, Literal, get_args, get_origin
 
-__all__ = ['BaseConfig']
-
-_supported_singleton_types = [
+_supported_string_covertable_types: set[type] = {
     int, Fraction, Decimal, float, complex,
-    str, Path, bool,
-]
-"""Supported singleton types.
+    str, Path,
+}
+"""Supported string-convertable types.
+
 These types are not container types,
-and they all accepts a single string for construction.
+and their instances one-to-one string representation
+that can be converted to or from.
+
+```python
+str(Fraction('3/4')) == '3/4'
+str(complex('3.2+nanj')) == '3.2+nanj'
+```
 """
 
-_supported_types = [
+_supported_singleton_types: set[type] = {
+    bool
+} | _supported_string_covertable_types
+"""Supported singleton types.
+
+These types are not container types,
+but the addition of `bool` type breaks one-to-one string conversion.
+"""
+
+_supported_types: set[type] = {
     Literal, list,
-] + _supported_singleton_types
+ } | _supported_string_covertable_types
 """All supported types in `BaseConfig` class"""
 
 
@@ -115,23 +129,29 @@ class BaseConfig(ABC):
         return parser
 
     @classmethod
-    def argument_parser_named_options(cls):
+    def argument_parser_named_options(cls, *, prefix_chars: str = '-'):
+        if len(prefix_chars) == 0:
+            raise ValueError(
+                'At least one prefix character should be provided '
+                'for keyword CLI arguments.'
+            )
+        prefix_char = '-' if '-' in prefix_chars else prefix_chars[0]
         for field in fields(cls):
             field_type = field.type
             field_name = field.name
 
-            is_kw = field.kw_only or get_origin(field_type) is list
-
-            arg_name = '--' + field_name.replace('_', '-') \
-                if is_kw else field_name
+            arg_name = prefix_char * 2 + field_name.replace('_', prefix_char)
 
             arg_options: dict[str, Any] = dict()
-            if field.default != MISSING:
-                arg_options['default'] = field.default
-                if is_kw:
-                    arg_options['required'] = False
-            elif is_kw:
+            if field.default == MISSING and field.default_factory == MISSING:
                 arg_options['required'] = True
+            elif field.default == MISSING and field.default_factory != MISSING:
+                arg_options['required'] = False
+                arg_options['default'] = field.default_factory()
+            else:
+                # `default` and `default_factory` are mutually exclusive.
+                assert field.default != MISSING
+                arg_options['required'] = field.default
 
             if get_origin(field_type) is list:
                 arg_options['type'] = get_args(field_type)[0]
@@ -216,10 +236,10 @@ class BaseConfig(ABC):
                     )
 
                 list_type = list_args[0]
-                if list_type not in _supported_singleton_types:
+                if list_type not in _supported_string_covertable_types:
                     raise TypeError(
                         f'Expect the list to have one of '
-                        f'`{_supported_singleton_types}` type '
+                        f'`{_supported_string_covertable_types}` type '
                         f'but found `{list_type}`.'
                     )
 
@@ -235,26 +255,3 @@ class BaseConfig(ABC):
                 raise TypeError(
                     f'`{field_type}` is not supported by `BaseConfig`.'
                 )
-
-
-if __name__ == '__main__':
-    @dataclass
-    class Config(BaseConfig):
-        epochs: int
-        learning_rates: list[Decimal]
-        lpf_pole: complex
-        epsilon: float
-        optimizer: Literal['Adam', 'AdamW', 'RMSProp']
-        model_version: Literal[1, 2, 3] = 2
-        random_seed: int = 1
-
-        _: KW_ONLY
-        batch_size: int
-        debug: bool = True
-        dataset_path: Path = Path.cwd() / 'datasets'
-        ratios: list[Fraction] = field(
-            default_factory=lambda: [Fraction(1, 3)]
-        )
-    
-    parser = Config.forge_parser()
-    parser.print_help()
