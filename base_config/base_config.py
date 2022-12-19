@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 from dataclasses import MISSING, asdict, dataclass, fields
 from decimal import Decimal
 from fractions import Fraction
+from itertools import pairwise
 from pathlib import Path
 from pprint import pprint
 from types import UnionType
@@ -77,7 +78,7 @@ def base_config_json_decode_object_hook(dct: dict[str, Any]):
     return dct
 
 
-@dataclass(init=True)
+@dataclass
 class BaseConfig(ABC):
     @classmethod
     def from_dict(cls, from_dict: dict[str, Any]):
@@ -144,7 +145,6 @@ class BaseConfig(ABC):
 
     def _validate_instance_variable_types(self):
         for field in fields(self):
-            pprint(f'{field = }')
             field_name = field.name
             field_type = field.type
 
@@ -164,17 +164,32 @@ class BaseConfig(ABC):
             elif get_origin(field_type) is Literal:
                 literal_args = get_args(field_type)
                 literal_types = list(map(type, get_args(field_type)))
-                for i in range(len(literal_types) - 1):
-                    if literal_types[i] is not literal_types[i + 1]:
+
+                for literal_arg, literal_type in zip(
+                    literal_args, literal_types
+                ):
+                    if literal_type not in _supported_singleton_types:
+                        raise TypeError(
+                            f'Expectes all `Literal` value members to have '
+                            f'type {_supported_singleton_types}, '
+                            f'but found {literal_arg} '
+                            f'with type {literal_type}.'
+                        )
+
+                for (prev_arg, prev_type), (curr_arg, curr_type) in pairwise(
+                    zip(literal_args, literal_types)
+                ):
+                    if prev_type is not curr_type:
                         raise TypeError(
                             f'Expects all choices in a `Literal` type to have '
                             f'the same type, but found inconsistent members '
-                            f'`{literal_args[i]}` with type '
-                            f'`{literal_types[i]}` and '
-                            f'`{literal_args[i + 1]}` with type '
-                            f'`{literal_types[i + 1]}`.'
+                            f'`{prev_arg}` with type '
+                            f'`{prev_type}` and '
+                            f'`{curr_arg}` with type '
+                            f'`{curr_type}`.'
                         )
-                if field_val not in get_args(field_type):
+
+                if field_val not in literal_args:
                     raise TypeError(
                         f'`{field_val}` is not one of `{literal_args}`.'
                     )
@@ -182,22 +197,15 @@ class BaseConfig(ABC):
                 list_args = get_args(field_type)
                 if len(list_args) != 1:
                     raise TypeError(
-                        f'Expected only one member type in list, '
+                        f'Expect only one member type in list, '
                         f'but found {list_args}.'
                     )
+
                 list_type = list_args[0]
-                if (
-                    get_origin(list_type) is Union or
-                    get_origin(list_type) is UnionType or
-                    get_origin(list_type) is Literal
-                ):
-                    raise TypeError(
-                        f'`list` doesn\' t support `Union` or `Literal` types.'
-                    )
-                elif list_type not in _supported_singleton_types:
+                if list_type not in _supported_singleton_types:
                     raise TypeError(
                         f'Expect the list to have one of '
-                        f'`{_supported_singleton_types}` '
+                        f'`{_supported_singleton_types}` type '
                         f'but found `{list_type}`.'
                     )
 
