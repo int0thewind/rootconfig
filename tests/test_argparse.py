@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 from unittest import TestCase
 
-from base_config import BaseConfig
+from baseconfig import BaseConfig
 
 
 @dataclass
@@ -188,7 +188,7 @@ class ArgumentParsingTest(TestCase):
                 '--learning-rates', '0.1', '--optimizer', 'Adam',
                 '--ratios', '3/4', 'inf'
             ])
-        
+
         with self.assertRaises(
             SystemExit,
             msg='Should exit if invalid arguments is provided.'
@@ -198,7 +198,7 @@ class ArgumentParsingTest(TestCase):
                 '--learning-rates', '0.1', '--optimizer', 'Adam',
                 '--i-am-an-imposter', 'whatever',
             ])
-        
+
         with self.assertRaises(
             SystemExit,
             msg='Should exit if invalid arguments is provided.'

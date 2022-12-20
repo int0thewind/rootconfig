@@ -6,7 +6,7 @@ from typing import Literal, Union
 from unittest import TestCase
 from decimal import Decimal
 
-from base_config import BaseConfig
+from baseconfig import BaseConfig
 
 
 class TypeCheckingTest(TestCase):

@@ -1,6 +1,6 @@
 """
 `BaseConfig`: Project configuration management
-with cli argument parsing and JSON import/export.
+with command-line argument parsing and JSON import/export.
 """
 
 import json
@@ -14,7 +14,7 @@ from itertools import pairwise
 from pathlib import Path
 from typing import Any, Literal, get_args, get_origin
 
-_supported_string_covertable_types: set[type] = {
+supported_string_covertable_types: set[type] = {
     int, Fraction, Decimal, float, complex,
     str, Path,
 }
@@ -30,18 +30,18 @@ str(complex('3.2+nanj')) == '3.2+nanj'
 ```
 """
 
-_supported_singleton_types: set[type] = {
+supported_singleton_types: set[type] = {
     bool
-} | _supported_string_covertable_types
+} | supported_string_covertable_types
 """Supported singleton types.
 
 These types are not container types,
 but the addition of `bool` type breaks one-to-one string conversion.
 """
 
-_supported_types: set[type] = {
+supported_types: set[type] = {
     Literal, list,
-} | _supported_string_covertable_types
+} | supported_singleton_types
 """All supported types in `BaseConfig` class"""
 
 
@@ -49,7 +49,7 @@ _JSON_CUSTOM_TYPE_KEY = '__custom_type__'
 _JSON_CUSTOM_TYPE_VALUE = '__value__'
 
 
-def _parse_bool(literal: str):
+def parse_bool(literal: str):
     """Parse boolean literals.
 
     Python `bool` does not accept 'False' to be `False`.
@@ -57,7 +57,7 @@ def _parse_bool(literal: str):
     `type` option to receive 'True' as `True` and 'False' as `False`.
 
     ```python
-    parser.add_argument('--foo', type=_parse_bool)
+    parser.add_argument('--foo', type=parse_bool)
     ```
     """
     if literal.lower() == 'true':
@@ -67,7 +67,11 @@ def _parse_bool(literal: str):
     raise ValueError(f'`{literal}` is a malformed boolean string.')
 
 
-class _BaseConfigJSONEncoder(json.JSONEncoder):
+class BaseConfigJSONEncoder(json.JSONEncoder):
+    """Custom Python `json.JSONEncoder` to encode non-standard type
+    such as `complex`, `Decimal`, `Fraction`, and `Path`.
+    """
+
     def default(self, o: Any) -> Any:
         if isinstance(o, complex):
             return {
@@ -92,7 +96,11 @@ class _BaseConfigJSONEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-def _base_config_json_decode_object_hook(dct: dict[str, Any]):
+def base_config_json_decode_object_hook(dct: dict[str, Any]):
+    """Custom Python object hook for JSON decoder
+    to decode non-standard types such as
+    `complex`, `Decimal`, `Fraction`, and `Path`.
+    """
     if (
         _JSON_CUSTOM_TYPE_KEY in dct and
         _JSON_CUSTOM_TYPE_VALUE in dct and
@@ -113,9 +121,24 @@ def _base_config_json_decode_object_hook(dct: dict[str, Any]):
 
 @dataclass
 class BaseConfig(ABC):
+    """The `BaseConfig` class.
+
+    A Python `dataclass` with special power,
+    `BaseConfig` can be extended to create your own configuration class
+    for project variables management.
+
+    For your own config class, remember to decorate the class
+    with `@dataclass`
+    ```python
+    @dataclass
+    class Config(BaseConfig):
+        epoch: int
+        lr: float
+    ```
+    """
     @classmethod
     def from_dict(cls, dic: dict[str, Any]):
-        """Create an instance from a dictionary.
+        """Create an instance from a `dict`.
 
         If any keys in the input dictionary do not exist,
         it will be filtered and disregarded.
@@ -126,9 +149,10 @@ class BaseConfig(ABC):
 
     @classmethod
     def from_json(cls, json_file: os.PathLike):
+        """Create an instance from a JSON file."""
         with open(json_file, 'r') as f:
             incoming_data = json.load(
-                f, object_hook=_base_config_json_decode_object_hook
+                f, object_hook=base_config_json_decode_object_hook
             )
         return cls.from_dict(incoming_data)
 
@@ -137,6 +161,7 @@ class BaseConfig(ABC):
         cls, arguments: list[str] | None = None,
         parser: ArgumentParser | None = None,
     ):
+        """Create an instance from a Python `ArgumentParser`"""
         parser = cls.forge_parser(parser)
         args = parser.parse_args(arguments)
         return cls.from_dict(vars(args))
@@ -145,6 +170,7 @@ class BaseConfig(ABC):
     def forge_parser(
         cls, parser: ArgumentParser | None = None,
     ):
+        """Forge a Python `ArgumentParser` to parse config arguments."""
         if parser is None:
             parser = ArgumentParser()
         for arg_name, arg_options in cls.parser_named_options():
@@ -153,6 +179,14 @@ class BaseConfig(ABC):
 
     @classmethod
     def parser_named_options(cls):
+        """Iterate through the class to create argument names and options
+        for a Python `ArgumentParser` instance.
+
+        ```python
+        for name, options in config.parser_named_options():
+            parser.add_argument(name, **options)
+        ```
+        """
         prefix_char = '-'
         for field in fields(cls):
             arg_name = prefix_char * 2 + field.name.replace('_', prefix_char)
@@ -174,7 +208,7 @@ class BaseConfig(ABC):
                 arg_options['type'] = type(get_args(field.type)[0])
                 arg_options['choices'] = get_args(field.type)
             elif field.type is bool:
-                arg_options['type'] = _parse_bool
+                arg_options['type'] = parse_bool
                 arg_options['choices'] = [True, False]
             else:
                 arg_options['type'] = field.type
@@ -185,11 +219,13 @@ class BaseConfig(ABC):
         self._validate_instance_variable_types()
 
     def to_dict(self):
+        """Convert the instance to a Python `dict`."""
         return asdict(self)
 
     def to_json(self, json_file: os.PathLike):
+        """Textualize the instance in a JSON file."""
         with open(json_file, 'w') as f:
-            json.dump(self.to_dict(), f, cls=_BaseConfigJSONEncoder)
+            json.dump(self.to_dict(), f, cls=BaseConfigJSONEncoder)
 
     def _validate_instance_variable_types(self):
         for field in fields(self):
@@ -203,7 +239,7 @@ class BaseConfig(ABC):
                     f'`{field_name}` expects a value, but nothing is provided.'
                 )
 
-            if field_type in _supported_singleton_types:
+            if field_type in supported_singleton_types:
                 if not isinstance(field_val, field_type):
                     raise TypeError(
                         f'`{field_name}` is expected to be a(n) `{field_type}`'
@@ -216,10 +252,10 @@ class BaseConfig(ABC):
                 for literal_arg, literal_type in zip(
                     literal_args, literal_types
                 ):
-                    if literal_type not in _supported_singleton_types:
+                    if literal_type not in supported_singleton_types:
                         raise TypeError(
                             f'Expectes all `Literal` value members to have '
-                            f'type {_supported_singleton_types}, '
+                            f'type {supported_singleton_types}, '
                             f'but found {literal_arg} '
                             f'with type {literal_type}.'
                         )
@@ -250,10 +286,10 @@ class BaseConfig(ABC):
                     )
 
                 list_type = list_args[0]
-                if list_type not in _supported_singleton_types:
+                if list_type not in supported_singleton_types:
                     raise TypeError(
                         f'Expect the list to have one of '
-                        f'`{_supported_singleton_types}` type '
+                        f'`{supported_singleton_types}` type '
                         f'but found `{list_type}`.'
                     )
 
