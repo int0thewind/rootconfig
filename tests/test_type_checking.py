@@ -256,11 +256,3 @@ class TypeCheckingTest(TestCase):
                     default_factory=lambda: (1, 2.0, 3)
                 )
             Config11()
-
-        with self.assertRaises(
-            TypeError, msg='`list` cannot accept booleans.',
-        ):
-            @dataclass
-            class Config12(BaseConfig):
-                attr1: list[bool]
-            Config12([True, True, False])

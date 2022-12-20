@@ -34,65 +34,81 @@ class ArgumentParsingTest(TestCase):
             arg_name for arg_name, _ in
             Config.argument_parser_named_options()
         ]
-        print(arg_names)
-
-        self.assertNotIn(
-            '--epoch', arg_names,
-            'Positional-only singleton fields '
-            'should not be keyword CLI arguments.'
-        )
-        self.assertNotIn(
-            'lpf-pole', arg_names,
-            'Positional-only singleton fields should not '
-            'have its underscores converted to hyphens '
-            'when being converted to CLI arguments. '
-        )
-        self.assertNotIn(
-            'batch_size', arg_names,
-            'Keyword-only fields should not be '
-            'a positional-only CLI arguments.'
+        for arg_name in arg_names:
+            self.assertEqual(
+                arg_name[:2], '--', 'All arguments must be keyword arguments.'
+            )
+        self.assertIn(
+            '--dataset-path', arg_names,
+            'Keyword-only fields with underscores should'
+            'have its underscores converted to hyphens.'
         )
         self.assertNotIn(
             '--batch_size', arg_names,
             'Keyword-only fields should have all its underscores '
             'converted to hyphens when being converted to CLI arguments.'
         )
-        self.assertNotIn(
-            'learning-rates', arg_names,
-            'Positional-only list fields should be treated '
-            'as keyword-only CLI arguments.'
-        )
 
-        self.assertIn(
-            'epsilon', arg_names,
-            'Positonal-only singleton fields '
-            'should be treated as positional CLI arguments.'
-        )
-        self.assertIn(
-            'lpf_pole', arg_names,
-            'Positional-only singleton fields with underscores '
-            'should keep its underscores.'
-        )
-        self.assertIn(
-            '--debug', arg_names,
-            'Keyword-only singleton fields '
-            'should be treated as keyword CLI arguments.'
-        )
-        self.assertIn(
-            '--dataset-path', arg_names,
-            'Keyword-only fields with underscores should'
-            'have its underscores converted to hyphens.'
-        )
-        self.assertIn(
-            '--learning-rates', arg_names,
-            'Positional-only list fields shoudl be treated as '
-            'keyword CLI arguments.'
-        )
+    def test_argument_parser_options(self):
+        count = 0
+        for arg_name, arg_options in Config.argument_parser_named_options():
+            self.assertIn(
+                'type', arg_options,
+                'All arguments should have its `type` specified.'
+            )
+            self.assertIn(
+                'required', arg_options,
+                'All arguments should have its `required` specified.'
+            )
+            if arg_name == '--epsilon':
+                count += 1
+                self.assertIs(
+                    arg_options['type'], float,
+                    'Should have correct types.'
+                )
+            if arg_name == '--random-seed':
+                count += 1
+                self.assertIs(
+                    arg_options['type'], int,
+                    'Should have correct types.'
+                )
+                self.assertEqual(
+                    arg_options['default'], 1,
+                    'Should have correct default values.'
+                )
+            if arg_name == '--ratios':
+                count += 1
+                self.assertIs(
+                    arg_options['type'], Fraction,
+                    'Should have correct types.'
+                )
+                self.assertEqual(
+                    arg_options['default'], [Fraction('1/3')],
+                    'Should have correct default values.'
+                )
+            if arg_name == '--model-version':
+                count += 1
+                self.assertIs(
+                    arg_options['type'], int,
+                    'Should have correct types.'
+                )
+                self.assertEqual(
+                    arg_options['default'], 2,
+                    'Should have correct default values.'
+                )
+                self.assertEqual(
+                    arg_options['choices'], (1, 2, 3),
+                    'Should have correct default values.'
+                )
+            if arg_name == '--optimizer':
+                count += 1
+                self.assertIs(
+                    arg_options['type'], str,
+                    'Should have correct types.'
+                )
+                self.assertEqual(
+                    arg_options['choices'], ('Adam', 'AdamW', 'RMSProp'),
+                    'Should have correct default values.'
+                )
 
-    # def test_argument_parser_options(self):
-    #     for arg_name, arg_options in Config.argument_parser_named_options():
-    #         self.assertIn(
-    #             'type', arg_options,
-    #             'All arguments should have its type specified.'
-    #         )
-    #         if arg_name == 'epochs':
+        self.assertEqual(count, 5, 'Should have correct argument names.')

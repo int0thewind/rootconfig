@@ -7,7 +7,7 @@ import json
 import os
 from abc import ABC
 from argparse import ArgumentParser
-from dataclasses import KW_ONLY, MISSING, asdict, dataclass, field, fields
+from dataclasses import KW_ONLY, MISSING, asdict, dataclass, fields
 from decimal import Decimal
 from fractions import Fraction
 from itertools import pairwise
@@ -47,6 +47,14 @@ _supported_types: set[type] = {
 
 _JSON_CUSTOM_TYPE_KEY = '__custom_type__'
 _JSON_CUSTOM_TYPE_VALUE = '__value__'
+
+
+def _parse_bool(literal: str):
+    if literal.lower() == 'true':
+        return True
+    elif literal.lower() == 'false':
+        return False
+    raise ValueError(f'`{literal}` is a malformed boolean string.')
 
 
 class _BaseConfigJSONEncoder(json.JSONEncoder):
@@ -96,8 +104,15 @@ def _base_config_json_decode_object_hook(dct: dict[str, Any]):
 @dataclass
 class BaseConfig(ABC):
     @classmethod
-    def from_dict(cls, from_dict: dict[str, Any]):
-        return cls(**from_dict)
+    def from_dict(cls, dic: dict[str, Any]):
+        """Create an instance from a dictionary.
+
+        If any keys in the input dictionary do not exist,
+        it will be filtered and disregarded.
+        """
+        names = {field.name for field in fields(cls)}
+        filtered_dict = {k: v for k, v in dic.items() if k in names}
+        return cls(**filtered_dict)
 
     @classmethod
     def from_json(cls, json_file: os.PathLike):
@@ -111,25 +126,30 @@ class BaseConfig(ABC):
     def parse_args(
         cls, arguments: list[str] | None = None,
         parser: ArgumentParser | None = None,
+        prefix_chars: str = '-',
     ):
-        parser = cls.forge_parser(parser)
+        parser = cls.forge_parser(parser, prefix_chars)
         args = parser.parse_args(arguments)
         return cls.from_dict(vars(args))
 
     @classmethod
-    def forge_parser(cls, parser: ArgumentParser | None = None):
+    def forge_parser(
+        cls, parser: ArgumentParser | None = None,
+        prefix_chars: str = '-',
+    ):
         if parser is None:
             parser = ArgumentParser(
                 prog=cls.__name__,
                 description=cls.__doc__,
             )
-        for arg_name, arg_options in cls.argument_parser_named_options():
-            print(f'{arg_name = }, {arg_options = }')
+        for arg_name, arg_options in cls.argument_parser_named_options(
+            prefix_chars,
+        ):
             parser.add_argument(arg_name, **arg_options)
         return parser
 
     @classmethod
-    def argument_parser_named_options(cls, *, prefix_chars: str = '-'):
+    def argument_parser_named_options(cls, prefix_chars: str = '-'):
         if len(prefix_chars) == 0:
             raise ValueError(
                 'At least one prefix character should be provided '
@@ -137,33 +157,29 @@ class BaseConfig(ABC):
             )
         prefix_char = '-' if '-' in prefix_chars else prefix_chars[0]
         for field in fields(cls):
-            field_type = field.type
-            field_name = field.name
-
-            arg_name = prefix_char * 2 + field_name.replace('_', prefix_char)
+            arg_name = prefix_char * 2 + field.name.replace('_', prefix_char)
 
             arg_options: dict[str, Any] = dict()
-            if field.default == MISSING and field.default_factory == MISSING:
-                arg_options['required'] = True
-            elif field.default == MISSING and field.default_factory != MISSING:
-                arg_options['required'] = False
-                arg_options['default'] = field.default_factory()
-            else:
-                # `default` and `default_factory` are mutually exclusive.
-                assert field.default != MISSING
-                arg_options['required'] = field.default
-
-            if get_origin(field_type) is list:
-                arg_options['type'] = get_args(field_type)[0]
+            arg_options['required'] = (
+                field.default == MISSING and field.default_factory == MISSING
+            )
+            if field.default != MISSING or field.default_factory != MISSING:
+                assert not arg_options['required']
+                arg_options['default'] = (
+                    field.default_factory()
+                    if field.default_factory != MISSING else field.default
+                )
+            if get_origin(field.type) is list:
+                arg_options['type'] = get_args(field.type)[0]
                 arg_options['nargs'] = '*'
-            elif get_origin(field_type) is Literal:
-                arg_options['type'] = type(get_args(field_type)[0])
-                arg_options['choices'] = get_args(field_type)
-            elif field_type is not bool:
-                arg_options['type'] = field_type
+            elif get_origin(field.type) is Literal:
+                arg_options['type'] = type(get_args(field.type)[0])
+                arg_options['choices'] = get_args(field.type)
+            elif field.type is bool:
+                arg_options['type'] = _parse_bool
+                arg_options['choices'] = [True, False]
             else:
-                assert field_type is bool
-                arg_options['action'] = 'store_true'
+                arg_options['type'] = field.type
 
             yield arg_name, arg_options
 
@@ -236,10 +252,10 @@ class BaseConfig(ABC):
                     )
 
                 list_type = list_args[0]
-                if list_type not in _supported_string_covertable_types:
+                if list_type not in _supported_singleton_types:
                     raise TypeError(
                         f'Expect the list to have one of '
-                        f'`{_supported_string_covertable_types}` type '
+                        f'`{_supported_singleton_types}` type '
                         f'but found `{list_type}`.'
                     )
 
