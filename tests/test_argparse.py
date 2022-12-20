@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Literal
 from unittest import TestCase
 
-from baseconfig import BaseConfig
+from rootconfig import RootConfig
 
 
 @dataclass
-class Config(BaseConfig):
+class Config(RootConfig):
     batch_size: int
     lpf_pole: complex
     learning_rates: list[Decimal]

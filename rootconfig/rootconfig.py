@@ -1,5 +1,5 @@
 """
-`BaseConfig`: Project configuration management
+`RootConfig`: Project configuration management
 with command-line argument parsing and JSON import/export.
 """
 
@@ -42,7 +42,7 @@ but the addition of `bool` type breaks one-to-one string conversion.
 supported_types: set[type] = {
     Literal, list,
 } | supported_singleton_types
-"""All supported types in `BaseConfig` class"""
+"""All supported types in `RootConfig` class"""
 
 
 _JSON_CUSTOM_TYPE_KEY = '__custom_type__'
@@ -67,7 +67,7 @@ def parse_bool(literal: str):
     raise ValueError(f'`{literal}` is a malformed boolean string.')
 
 
-class BaseConfigJSONEncoder(json.JSONEncoder):
+class RootConfigJSONEncoder(json.JSONEncoder):
     """Custom Python `json.JSONEncoder` to encode non-standard type
     such as `complex`, `Decimal`, `Fraction`, and `Path`.
     """
@@ -96,7 +96,7 @@ class BaseConfigJSONEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-def base_config_json_decode_object_hook(dct: dict[str, Any]):
+def root_config_json_decode_object_hook(dct: dict[str, Any]):
     """Custom Python object hook for JSON decoder
     to decode non-standard types such as
     `complex`, `Decimal`, `Fraction`, and `Path`.
@@ -120,18 +120,18 @@ def base_config_json_decode_object_hook(dct: dict[str, Any]):
 
 
 @dataclass
-class BaseConfig(ABC):
-    """The `BaseConfig` class.
+class RootConfig(ABC):
+    """The `RootConfig` class.
 
     A Python `dataclass` with special power,
-    `BaseConfig` can be extended to create your own configuration class
+    `RootConfig` can be extended to create your own configuration class
     for project variables management.
 
     For your own config class, remember to decorate the class
     with `@dataclass`
     ```python
     @dataclass
-    class Config(BaseConfig):
+    class Config(RootConfig):
         epoch: int
         lr: float
     ```
@@ -152,7 +152,7 @@ class BaseConfig(ABC):
         """Create an instance from a JSON file."""
         with open(json_file, 'r') as f:
             incoming_data = json.load(
-                f, object_hook=base_config_json_decode_object_hook
+                f, object_hook=root_config_json_decode_object_hook
             )
         return cls.from_dict(incoming_data)
 
@@ -225,7 +225,7 @@ class BaseConfig(ABC):
     def to_json(self, json_file: os.PathLike):
         """Textualize the instance in a JSON file."""
         with open(json_file, 'w') as f:
-            json.dump(self.to_dict(), f, cls=BaseConfigJSONEncoder)
+            json.dump(self.to_dict(), f, cls=RootConfigJSONEncoder)
 
     def _validate_instance_variable_types(self):
         for field in fields(self):
@@ -303,5 +303,5 @@ class BaseConfig(ABC):
                         raise TypeError()
             else:
                 raise TypeError(
-                    f'`{field_type}` is not supported by `BaseConfig`.'
+                    f'`{field_type}` is not supported by `RootConfig`.'
                 )

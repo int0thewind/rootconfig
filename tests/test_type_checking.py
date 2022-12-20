@@ -6,13 +6,13 @@ from typing import Literal, Union
 from unittest import TestCase
 from decimal import Decimal
 
-from baseconfig import BaseConfig
+from rootconfig import RootConfig
 
 
 class TypeCheckingTest(TestCase):
     def test_singleton_type(self):
         @dataclass
-        class Config(BaseConfig):
+        class Config(RootConfig):
             epsilon: float
             learning_rate: Decimal
             data_path: Path
@@ -46,7 +46,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='Should not have unsupported types.',
         ):
             @dataclass
-            class Config1(BaseConfig):
+            class Config1(RootConfig):
                 attr1: bytes
             Config1(b'abc')
 
@@ -54,7 +54,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='Should catch value with incorrect type.',
         ):
             @dataclass
-            class Config2(BaseConfig):
+            class Config2(RootConfig):
                 attr1: str
             Config2(b'abc')
 
@@ -62,7 +62,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='Should catch malformed type.',
         ):
             @dataclass
-            class Config3(BaseConfig):
+            class Config3(RootConfig):
                 attr1: '3'
             Config3(b'abc')
 
@@ -70,13 +70,13 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='Should catch default value with incorrect type.',
         ):
             @dataclass
-            class Config4(BaseConfig):
+            class Config4(RootConfig):
                 attr1: str = 3
             Config4()
 
     def test_literal_type(self):
         @dataclass
-        class Config(BaseConfig):
+        class Config(RootConfig):
             criterion: Literal['mse', 'cos-face', 'ge2e']
             model_version: Literal[1, 2, 3, 4, 5, 0]
 
@@ -103,7 +103,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='`Literal` type should have same value type.'
         ):
             @dataclass
-            class Config1(BaseConfig):
+            class Config1(RootConfig):
                 model_version: Literal[1, 2, '3']
             Config1(2)
 
@@ -111,7 +111,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='`Should catch erroneous default `Literal` value.'
         ):
             @dataclass
-            class Config2(BaseConfig):
+            class Config2(RootConfig):
                 model_version: Literal[1, 2, 3, 4] = 0
             Config2()
 
@@ -119,7 +119,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='Should detect not defined `Literal` values'
         ):
             @dataclass
-            class Config3(BaseConfig):
+            class Config3(RootConfig):
                 model_version: Literal[1, 2, 3]
             Config3(4)
 
@@ -127,7 +127,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='A bare `Literal` should not pass.'
         ):
             @dataclass
-            class Config4(BaseConfig):
+            class Config4(RootConfig):
                 model_version: Literal
             Config4(100)
 
@@ -135,13 +135,13 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='`Literal` should only contain supported types.'
         ):
             @dataclass
-            class Config5(BaseConfig):
+            class Config5(RootConfig):
                 model_version: Literal[None]
             Config5(None)
 
     def test_list_type(self):
         @dataclass
-        class Config(BaseConfig):
+        class Config(RootConfig):
             learning_rate_order: list[Decimal]
             poles: list[complex]
             log_files: list[Path]
@@ -161,7 +161,7 @@ class TypeCheckingTest(TestCase):
         )
         self.assertEqual(
             len(config.log_files), 0,
-            '`BaseConfig` class must be able to accept an empty list.'
+            '`RootConfig` class must be able to accept an empty list.'
         )
 
     def test_list_type_exception(self):
@@ -169,7 +169,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='Cannot have more than one types in list.',
         ):
             @dataclass
-            class Config(BaseConfig):
+            class Config(RootConfig):
                 attr1: list[int, str]
             Config([1, 2, '3'])
 
@@ -177,7 +177,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='Cannot have `Union` types in list.',
         ):
             @dataclass
-            class Config2(BaseConfig):
+            class Config2(RootConfig):
                 attr1: list[int | str]
             Config2([1, 2, '3'])
 
@@ -185,7 +185,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='Cannot have `Union` types in list.',
         ):
             @dataclass
-            class Config3(BaseConfig):
+            class Config3(RootConfig):
                 attr1: list[Union[int, str]]
             Config3([1, 2, '3'])
 
@@ -193,7 +193,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='Cannot have `Literal` types in list.'
         ):
             @dataclass
-            class Config4(BaseConfig):
+            class Config4(RootConfig):
                 attr1: list[Literal['a', 'b', 'c']]
             Config4(['a', 'a', 'b'])
 
@@ -201,7 +201,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='Cannot have `list` types in list.'
         ):
             @dataclass
-            class Config5(BaseConfig):
+            class Config5(RootConfig):
                 attr1: list[list[str]]
             Config5([['a', 'a', 'b']])
 
@@ -209,7 +209,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='Cannot have not supported singleton types in list.'
         ):
             @dataclass
-            class Config6(BaseConfig):
+            class Config6(RootConfig):
                 attr1: list[None]
             Config6([None, None, None])
 
@@ -217,7 +217,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='All elements in a list should match the type.',
         ):
             @dataclass
-            class Config7(BaseConfig):
+            class Config7(RootConfig):
                 attr1: list[Fraction]
             Config7([1 / 2, Fraction('1/2')])
 
@@ -225,7 +225,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='All elements in a list should match the type.'
         ):
             @dataclass
-            class Config8(BaseConfig):
+            class Config8(RootConfig):
                 attr1: list[float]
             Config8([1, 2., 0.3])
 
@@ -233,7 +233,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='A bare `list` type should not be accepted.'
         ):
             @dataclass
-            class Config9(BaseConfig):
+            class Config9(RootConfig):
                 attr1: list
             Config9([1, 2., 0.3])
 
@@ -241,7 +241,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='All elements in a list should match the type.',
         ):
             @dataclass
-            class Config10(BaseConfig):
+            class Config10(RootConfig):
                 attr1: list[int] = field(
                     default_factory=lambda: [1, 2.0, 3]
                 )
@@ -251,7 +251,7 @@ class TypeCheckingTest(TestCase):
             TypeError, msg='`list` field type should receive a list.',
         ):
             @dataclass
-            class Config11(BaseConfig):
+            class Config11(RootConfig):
                 attr1: list[int] = field(
                     default_factory=lambda: (1, 2.0, 3)
                 )
