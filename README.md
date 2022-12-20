@@ -1,13 +1,13 @@
-# `baseconfig`
+# `rootconfig`
 
-`baseconfig` library provides a convenient interface to parse, manage,
+`rootconfig` library provides a convenient interface to parse, manage,
 and export essential parameters in a Python project.
 This measure of managing parameters can be used in projects like machine learning,
 where various sets of hyper-parameters are experimented on a same code base.
 
-The core of `baseconfig` is an abstract [Python `dataclass`](https://docs.python.org/library/dataclasses.html)
-called `BaseConfig`, which can be inherited to construct your own project configuration class.
-The usage of `BaseConfig` class is the same to any Python `dataclass`.
+The core of `rootconfig` is an abstract [Python `dataclass`](https://docs.python.org/library/dataclasses.html)
+called `RootConfig`, which can be inherited to construct your own project configuration class.
+The usage of `RootConfig` class is the same to any Python `dataclass`.
 You can add attributes with type annotation directly to it.
 
 ## Core Usage
@@ -16,11 +16,11 @@ You can add attributes with type annotation directly to it.
 from dataclasses import dataclass
 from fractions import Fraction
 
-from baseconfig import BaseConfig
+from rootconfig import RootConfig
 
 
 @dataclass
-class Config(BaseConfig):
+class Config(RootConfig):
     learning_rate: float
     optimizer: Literal['AdamW', 'SGD']
     margin: Fraction
