@@ -28,7 +28,7 @@ class ArgumentParsingTest(TestCase):
     def test_argument_parser_options_name(self):
         arg_names = [
             arg_name for arg_name, _ in
-            Config.argument_parser_named_options()
+            Config.parser_named_options()
         ]
         for arg_name in arg_names:
             self.assertEqual(
@@ -47,7 +47,7 @@ class ArgumentParsingTest(TestCase):
 
     def test_argument_parser_options(self):
         count = 0
-        for arg_name, arg_options in Config.argument_parser_named_options():
+        for arg_name, arg_options in Config.parser_named_options():
             self.assertIn(
                 'type', arg_options,
                 'All arguments should have its `type` specified.'
@@ -187,6 +187,26 @@ class ArgumentParsingTest(TestCase):
                 '--batch-size', '128', '--lpf-pole', '0+1j',
                 '--learning-rates', '0.1', '--optimizer', 'Adam',
                 '--ratios', '3/4', 'inf'
+            ])
+        
+        with self.assertRaises(
+            SystemExit,
+            msg='Should exit if invalid arguments is provided.'
+        ):
+            config = Config.parse_args([
+                '--batch-size', '128', '--lpf-pole', '0+1j',
+                '--learning-rates', '0.1', '--optimizer', 'Adam',
+                '--i-am-an-imposter', 'whatever',
+            ])
+        
+        with self.assertRaises(
+            SystemExit,
+            msg='Should exit if invalid arguments is provided.'
+        ):
+            config = Config.parse_args([
+                '--batch-size', '128', '--lpf-pole', '0+1j',
+                '--learning-rates', '0.1', '--optimizer', 'Adam',
+                'whatever',
             ])
 
         config = Config.parse_args([

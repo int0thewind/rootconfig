@@ -7,7 +7,7 @@ import json
 import os
 from abc import ABC
 from argparse import ArgumentParser
-from dataclasses import KW_ONLY, MISSING, asdict, dataclass, fields
+from dataclasses import MISSING, asdict, dataclass, fields
 from decimal import Decimal
 from fractions import Fraction
 from itertools import pairwise
@@ -147,12 +147,12 @@ class BaseConfig(ABC):
     ):
         if parser is None:
             parser = ArgumentParser()
-        for arg_name, arg_options in cls.argument_parser_named_options():
+        for arg_name, arg_options in cls.parser_named_options():
             parser.add_argument(arg_name, **arg_options)
         return parser
 
     @classmethod
-    def argument_parser_named_options(cls):
+    def parser_named_options(cls):
         prefix_char = '-'
         for field in fields(cls):
             arg_name = prefix_char * 2 + field.name.replace('_', prefix_char)
