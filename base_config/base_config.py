@@ -41,7 +41,7 @@ but the addition of `bool` type breaks one-to-one string conversion.
 
 _supported_types: set[type] = {
     Literal, list,
- } | _supported_string_covertable_types
+} | _supported_string_covertable_types
 """All supported types in `BaseConfig` class"""
 
 
@@ -50,6 +50,16 @@ _JSON_CUSTOM_TYPE_VALUE = '__value__'
 
 
 def _parse_bool(literal: str):
+    """Parse boolean literals.
+
+    Python `bool` does not accept 'False' to be `False`.
+    This function is created for Python `ArgumentParser.add_argument()`'s
+    `type` option to receive 'True' as `True` and 'False' as `False`.
+
+    ```python
+    parser.add_argument('--foo', type=_parse_bool)
+    ```
+    """
     if literal.lower() == 'true':
         return True
     elif literal.lower() == 'false':
@@ -126,36 +136,24 @@ class BaseConfig(ABC):
     def parse_args(
         cls, arguments: list[str] | None = None,
         parser: ArgumentParser | None = None,
-        prefix_chars: str = '-',
     ):
-        parser = cls.forge_parser(parser, prefix_chars)
+        parser = cls.forge_parser(parser)
         args = parser.parse_args(arguments)
         return cls.from_dict(vars(args))
 
     @classmethod
     def forge_parser(
         cls, parser: ArgumentParser | None = None,
-        prefix_chars: str = '-',
     ):
         if parser is None:
-            parser = ArgumentParser(
-                prog=cls.__name__,
-                description=cls.__doc__,
-            )
-        for arg_name, arg_options in cls.argument_parser_named_options(
-            prefix_chars,
-        ):
+            parser = ArgumentParser()
+        for arg_name, arg_options in cls.argument_parser_named_options():
             parser.add_argument(arg_name, **arg_options)
         return parser
 
     @classmethod
-    def argument_parser_named_options(cls, prefix_chars: str = '-'):
-        if len(prefix_chars) == 0:
-            raise ValueError(
-                'At least one prefix character should be provided '
-                'for keyword CLI arguments.'
-            )
-        prefix_char = '-' if '-' in prefix_chars else prefix_chars[0]
+    def argument_parser_named_options(cls):
+        prefix_char = '-'
         for field in fields(cls):
             arg_name = prefix_char * 2 + field.name.replace('_', prefix_char)
 
