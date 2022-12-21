@@ -162,6 +162,11 @@ class RootConfig(ABC):
         parser: ArgumentParser | None = None,
     ):
         """Create an instance from a Python `ArgumentParser`"""
+
+        # TODO: change the logic here for the next major version.
+        # For `parse_args`, if a parser is provided, use it directly.
+        # For `forge_parser`, if a parser is provided, add arguments.
+
         parser = cls.forge_parser(parser)
         args = parser.parse_args(arguments)
         return cls.from_dict(vars(args))
