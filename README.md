@@ -1,3 +1,5 @@
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/rootconfig)
+
 # `rootconfig`
 
 `rootconfig` library provides a convenient interface to parse, manage,
