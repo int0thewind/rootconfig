@@ -7,7 +7,7 @@ import json
 import os
 from abc import ABC
 from argparse import ArgumentParser
-from dataclasses import MISSING, asdict, dataclass, fields
+from dataclasses import MISSING, asdict, dataclass, fields, is_dataclass
 from decimal import Decimal
 from fractions import Fraction
 from itertools import pairwise
@@ -45,10 +45,6 @@ supported_types: set[type] = {
 """All supported types in `RootConfig` class"""
 
 
-_JSON_CUSTOM_TYPE_KEY = '__custom_type__'
-_JSON_CUSTOM_TYPE_VALUE = '__value__'
-
-
 def parse_bool(literal: str):
     """Parse boolean literals.
 
@@ -65,6 +61,10 @@ def parse_bool(literal: str):
     elif literal.lower() == 'false':
         return False
     raise ValueError(f'`{literal}` is a malformed boolean string.')
+
+
+_JSON_CUSTOM_TYPE_KEY = '__custom_type__'
+_JSON_CUSTOM_TYPE_VALUE = '__value__'
 
 
 class RootConfigJSONEncoder(json.JSONEncoder):
@@ -136,6 +136,7 @@ class RootConfig(ABC):
         lr: float
     ```
     """
+
     @classmethod
     def from_dict(cls, dic: dict[str, Any]):
         """Create an instance from a `dict`.
@@ -143,6 +144,7 @@ class RootConfig(ABC):
         If any keys in the input dictionary do not exist,
         it will be filtered and disregarded.
         """
+
         names = {field.name for field in fields(cls)}
         filtered_dict = {k: v for k, v in dic.items() if k in names}
         return cls(**filtered_dict)
@@ -150,6 +152,7 @@ class RootConfig(ABC):
     @classmethod
     def from_json(cls, json_file: os.PathLike):
         """Create an instance from a JSON file."""
+
         with open(json_file, 'r') as f:
             incoming_data = json.load(
                 f, object_hook=root_config_json_decode_object_hook
@@ -163,11 +166,8 @@ class RootConfig(ABC):
     ):
         """Create an instance from a Python `ArgumentParser`"""
 
-        # TODO: change the logic here for the next major version.
-        # For `parse_args`, if a parser is provided, use it directly.
-        # For `forge_parser`, if a parser is provided, add arguments.
-
-        parser = cls.forge_parser(parser)
+        if parser is None:
+            parser = cls.forge_parser(parser)
         args = parser.parse_args(arguments)
         return cls.from_dict(vars(args))
 
@@ -176,6 +176,7 @@ class RootConfig(ABC):
         cls, parser: ArgumentParser | None = None,
     ):
         """Forge a Python `ArgumentParser` to parse config arguments."""
+
         if parser is None:
             parser = ArgumentParser()
         for arg_name, arg_options in cls.parser_named_options():
@@ -192,6 +193,7 @@ class RootConfig(ABC):
             parser.add_argument(name, **options)
         ```
         """
+
         prefix_char = '-'
         for field in fields(cls):
             arg_name = prefix_char * 2 + field.name.replace('_', prefix_char)
@@ -221,16 +223,26 @@ class RootConfig(ABC):
             yield arg_name, arg_options
 
     def __post_init__(self):
+        self._validate_instance_is_dataclass()
         self._validate_instance_variable_types()
 
     def to_dict(self):
         """Convert the instance to a Python `dict`."""
+
         return asdict(self)
 
     def to_json(self, json_file: os.PathLike):
         """Textualize the instance in a JSON file."""
+
         with open(json_file, 'w') as f:
             json.dump(self.to_dict(), f, cls=RootConfigJSONEncoder)
+
+    def _validate_instance_is_dataclass(self):
+        if not is_dataclass(self):
+            raise TypeError(
+                f'`{self.__class__.__name__}` is not a Python `dataclass`. '
+                f'Perhaps you forget to use `@dataclass` decorator?'
+            )
 
     def _validate_instance_variable_types(self):
         for field in fields(self):
