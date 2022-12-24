@@ -253,6 +253,30 @@ class RootConfig(ABC):
 
             yield arg_name, arg_options
 
+    @classmethod
+    def main_method(
+        cls, fn, *,
+        json_file: os.PathLike | None = None,
+        arguments: list[str] | None = None,
+        parser: ArgumentParser | None = None
+    ):
+        if not fn.__class__.__name__ == 'function':
+            raise TypeError(f'Expects {fn} to be a function.')
+
+        if json_file is not None and arguments is not None:
+            raise ValueError(
+                'Only one of `file` and `arguments` can be provided, but found both.'
+            )
+        if json_file is not None:
+            config = cls.from_json(json_file)
+        else:
+            config = cls.parse_args(arguments, parser)
+
+        def new_fn():
+            return fn(config)
+
+        return new_fn
+
     def __post_init__(self):
         self.check_sanity()
 
