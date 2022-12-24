@@ -12,7 +12,7 @@ called `RootConfig`, which can be inherited to construct your own project config
 The usage of `RootConfig` class is the same to any Python `dataclass`.
 You can declare attributes with type annotation.
 
-## Usage
+## Basic Usage
 
 To use the `RootConfig` class, inherit it decorate it with `dataclass`.
 
@@ -52,6 +52,9 @@ config = Config.parse_args([
     '--margin', '3/4',  # `Fraction` can be instantiated from a string. e.g. Fraction('3/4')
     '--flags', 'True', 'False'  # A sequence of `bool` is supported by its Python literal.
 ])
+# OR
+parser = ...  # You have your own Python's `ArgumentParser` instance.
+config = Config.parse_args(parser=parser)  # Use your own parser.
 ```
 
 We offer first-class support to Python's `Fraction`, `Decimal`, `complex`, `Path`, and `bool`.
