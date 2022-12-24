@@ -46,11 +46,11 @@ You may parse command-line arguments. All arguments are keyword arguments.
 ```python
 config = Config.parse_args()  # defaults to sys.argv[1:]
 # OR
-config= Config.parse_args([
+config = Config.parse_args([
     # '--learning-rate', '1e-4',  # default values can be safely omitted.
     '--optimizer', 'AdamW',  # `Literal` arguments can be parsed.
-    '--margin', '3/4,'  # `Fraction` can be instantiated from a string. e.g. Fraction('3/4')
-    '--debug', 'True', 'False'  # A sequence of `bool` is supported by its Python literal.
+    '--margin', '3/4',  # `Fraction` can be instantiated from a string. e.g. Fraction('3/4')
+    '--flags', 'True', 'False'  # A sequence of `bool` is supported by its Python literal.
 ])
 ```
 
@@ -101,6 +101,7 @@ To fully support JSON import/export and Python's `ArgumentParser`,
       Type arguments for "Literal" must be `None` or a literal value (`int`, `bool`, or `str`).
     - All literals must be in the same type.
   - `list`
+    - `list` type can only accept singleton types aformentioned. `Literal` type cannot be accepted.
 
 Supporting new types may cause some trouble to JSON serialization or `ArgumentParser`.
 For instance, it is very hard to parse an dictionary in command-line,
