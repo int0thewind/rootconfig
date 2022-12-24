@@ -236,7 +236,11 @@ class RootConfig(ABC):
                     if field.default_factory != MISSING else field.default
                 )
             if get_origin(field.type) is list:
-                arg_options['type'] = get_args(field.type)[0]
+                list_type = get_args(field.type)[0]
+                if list_type is bool:
+                    arg_options['type'] = parse_bool
+                else:
+                    arg_options['type'] = list_type
                 arg_options['nargs'] = '*'
             elif get_origin(field.type) is Literal:
                 arg_options['type'] = type(get_args(field.type)[0])
@@ -250,15 +254,7 @@ class RootConfig(ABC):
             yield arg_name, arg_options
 
     def __post_init__(self):
-        """Ending routine after the class instance is created.
-
-        This method does two things: validate whether
-        the instance is a valid Python `dataclass`, and
-        validate whether all fields' type with there values
-        are valid.
-        """
-        self._validate_instance_is_dataclass()
-        self._validate_instance_variable_types()
+        self.check_sanity()
 
     def to_dict(self):
         """Convert the instance to a Python `dict`."""
@@ -273,6 +269,17 @@ class RootConfig(ABC):
 
         with open(json_file, 'w') as f:
             json.dump(self.to_dict(), f, cls=RootConfigJSONEncoder)
+
+    def check_sanity(self):
+        """Validate whether the instance is a proper `RootConfig` instance.
+
+        This method does two things: validate whether
+        the instance is a valid Python `dataclass`, and
+        validate whether all fields' type with there values
+        are valid.
+        """
+        self._validate_instance_is_dataclass()
+        self._validate_instance_variable_types()
 
     def _validate_instance_is_dataclass(self):
         if not is_dataclass(self):
@@ -359,3 +366,19 @@ class RootConfig(ABC):
                 raise TypeError(
                     f'`{field_type}` is not supported by `RootConfig`.'
                 )
+
+
+if __name__ == '__main__':
+    from dataclasses import field
+
+    @dataclass
+    class Config(RootConfig):
+        optimizer: Literal['AdamW', 'SGD']
+        margin: Fraction
+        learning_rate: float = 1e-4
+        flags: list[bool] = field(
+            default_factory=lambda: [True]
+        )
+
+    config = Config.parse_args(
+        ['--optimizer', 'SGD', '--margin', '3/4', '--flags', 'False', 'Fal'])
