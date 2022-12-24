@@ -7,7 +7,7 @@ import json
 import os
 from abc import ABC
 from argparse import ArgumentParser
-from dataclasses import MISSING, asdict, dataclass, fields
+from dataclasses import MISSING, asdict, dataclass, fields, is_dataclass
 from decimal import Decimal
 from fractions import Fraction
 from itertools import pairwise
@@ -45,16 +45,12 @@ supported_types: set[type] = {
 """All supported types in `RootConfig` class"""
 
 
-_JSON_CUSTOM_TYPE_KEY = '__custom_type__'
-_JSON_CUSTOM_TYPE_VALUE = '__value__'
-
-
 def parse_bool(literal: str):
     """Parse boolean literals.
 
-    Python `bool` does not accept 'False' to be `False`.
+    Python `bool` does not convert 'False' to `False`.
     This function is created for Python `ArgumentParser.add_argument()`'s
-    `type` option to receive 'True' as `True` and 'False' as `False`.
+    `type` argument to receive 'True' as `True` and 'False' as `False`.
 
     ```python
     parser.add_argument('--foo', type=parse_bool)
@@ -64,7 +60,11 @@ def parse_bool(literal: str):
         return True
     elif literal.lower() == 'false':
         return False
-    raise ValueError(f'`{literal}` is a malformed boolean string.')
+    raise ValueError(f'"{literal}" is a malformed boolean string.')
+
+
+_JSON_CUSTOM_TYPE_KEY = '__custom_type__'
+_JSON_CUSTOM_TYPE_VALUE = '__value__'
 
 
 class RootConfigJSONEncoder(json.JSONEncoder):
@@ -97,9 +97,8 @@ class RootConfigJSONEncoder(json.JSONEncoder):
 
 
 def root_config_json_decode_object_hook(dct: dict[str, Any]):
-    """Custom Python object hook for JSON decoder
-    to decode non-standard types such as
-    `complex`, `Decimal`, `Fraction`, and `Path`.
+    """Custom Python object hook for JSON decoder to decode non-standard types
+    such as `complex`, `Decimal`, `Fraction`, and `Path`.
     """
     if (
         _JSON_CUSTOM_TYPE_KEY in dct and
@@ -127,8 +126,8 @@ class RootConfig(ABC):
     `RootConfig` can be extended to create your own configuration class
     for project variables management.
 
-    For your own config class, remember to decorate the class
-    with `@dataclass`
+    For your own config class, remember to decorate the class with `@dataclass`
+
     ```python
     @dataclass
     class Config(RootConfig):
@@ -136,20 +135,26 @@ class RootConfig(ABC):
         lr: float
     ```
     """
+
     @classmethod
     def from_dict(cls, dic: dict[str, Any]):
         """Create an instance from a `dict`.
 
-        If any keys in the input dictionary do not exist,
-        it will be filtered and disregarded.
+        Keys from the input `dict` that does not exist in the class
+        will be filtered.
         """
+
         names = {field.name for field in fields(cls)}
         filtered_dict = {k: v for k, v in dic.items() if k in names}
         return cls(**filtered_dict)
 
     @classmethod
     def from_json(cls, json_file: os.PathLike):
-        """Create an instance from a JSON file."""
+        """Create an instance from a JSON file.
+
+        Also see `to_json` instance method.
+        """
+
         with open(json_file, 'r') as f:
             incoming_data = json.load(
                 f, object_hook=root_config_json_decode_object_hook
@@ -161,13 +166,23 @@ class RootConfig(ABC):
         cls, arguments: list[str] | None = None,
         parser: ArgumentParser | None = None,
     ):
-        """Create an instance from a Python `ArgumentParser`"""
+        """Create an instance from a Python `ArgumentParser`
 
-        # TODO: change the logic here for the next major version.
-        # For `parse_args`, if a parser is provided, use it directly.
-        # For `forge_parser`, if a parser is provided, add arguments.
+        Without providing a list of arguments, `sys.argv[1:]` will be consumed.
 
-        parser = cls.forge_parser(parser)
+        If no parser is provided, the default one forged from the class
+        will be used. If one is provided, the provided parser would be
+        directly utilized untouched. This is fundamentally different
+        compared with `forge_parser` class method, as the latter would
+        touch the provided parser.
+
+        ```python
+        config = Config.parse_args()
+        ```
+        """
+
+        if parser is None:
+            parser = cls.forge_parser(parser)
         args = parser.parse_args(arguments)
         return cls.from_dict(vars(args))
 
@@ -175,7 +190,13 @@ class RootConfig(ABC):
     def forge_parser(
         cls, parser: ArgumentParser | None = None,
     ):
-        """Forge a Python `ArgumentParser` to parse config arguments."""
+        """Forge a Python `ArgumentParser` to parse config arguments.
+
+        If a parser is provided, this method would attach arguments
+        to the given parser. Otherwise, a default parser of the class
+        would be returned.
+        """
+
         if parser is None:
             parser = ArgumentParser()
         for arg_name, arg_options in cls.parser_named_options():
@@ -187,11 +208,19 @@ class RootConfig(ABC):
         """Iterate through the class to create argument names and options
         for a Python `ArgumentParser` instance.
 
+        All command-line arguments are keyword arguments.
+        For those data class fields that do not have default values,
+        those keyword arguments are not optional.
+
+        This method is used when forging the default `ArgumentParser`
+        for the class.
+
         ```python
         for name, options in config.parser_named_options():
             parser.add_argument(name, **options)
         ```
         """
+
         prefix_char = '-'
         for field in fields(cls):
             arg_name = prefix_char * 2 + field.name.replace('_', prefix_char)
@@ -207,7 +236,11 @@ class RootConfig(ABC):
                     if field.default_factory != MISSING else field.default
                 )
             if get_origin(field.type) is list:
-                arg_options['type'] = get_args(field.type)[0]
+                list_type = get_args(field.type)[0]
+                if list_type is bool:
+                    arg_options['type'] = parse_bool
+                else:
+                    arg_options['type'] = list_type
                 arg_options['nargs'] = '*'
             elif get_origin(field.type) is Literal:
                 arg_options['type'] = type(get_args(field.type)[0])
@@ -221,16 +254,39 @@ class RootConfig(ABC):
             yield arg_name, arg_options
 
     def __post_init__(self):
-        self._validate_instance_variable_types()
+        self.check_sanity()
 
     def to_dict(self):
         """Convert the instance to a Python `dict`."""
+
         return asdict(self)
 
     def to_json(self, json_file: os.PathLike):
-        """Textualize the instance in a JSON file."""
+        """Textualize the instance to a JSON file.
+
+        Also see `from_json` class method.
+        """
+
         with open(json_file, 'w') as f:
             json.dump(self.to_dict(), f, cls=RootConfigJSONEncoder)
+
+    def check_sanity(self):
+        """Validate whether the instance is a proper `RootConfig` instance.
+
+        This method does two things: validate whether
+        the instance is a valid Python `dataclass`, and
+        validate whether all fields' type with there values
+        are valid.
+        """
+        self._validate_instance_is_dataclass()
+        self._validate_instance_variable_types()
+
+    def _validate_instance_is_dataclass(self):
+        if not is_dataclass(self):
+            raise TypeError(
+                f'`{self.__class__.__name__}` is not a Python `dataclass`. '
+                f'Perhaps you forget to use `@dataclass` decorator?'
+            )
 
     def _validate_instance_variable_types(self):
         for field in fields(self):

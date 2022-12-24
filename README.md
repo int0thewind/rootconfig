@@ -12,7 +12,7 @@ called `RootConfig`, which can be inherited to construct your own project config
 The usage of `RootConfig` class is the same to any Python `dataclass`.
 You can declare attributes with type annotation.
 
-## Usage
+## Basic Usage
 
 To use the `RootConfig` class, inherit it decorate it with `dataclass`.
 
@@ -46,12 +46,15 @@ You may parse command-line arguments. All arguments are keyword arguments.
 ```python
 config = Config.parse_args()  # defaults to sys.argv[1:]
 # OR
-config= Config.parse_args([
+config = Config.parse_args([
     # '--learning-rate', '1e-4',  # default values can be safely omitted.
     '--optimizer', 'AdamW',  # `Literal` arguments can be parsed.
-    '--margin', '3/4,'  # `Fraction` can be instantiated from a string. e.g. Fraction('3/4')
-    '--debug', 'True', 'False'  # A sequence of `bool` is supported by its Python literal.
+    '--margin', '3/4',  # `Fraction` can be instantiated from a string. e.g. Fraction('3/4')
+    '--flags', 'True', 'False'  # A sequence of `bool` is supported by its Python literal.
 ])
+# OR
+parser = ...  # You have your own Python's `ArgumentParser` instance.
+config = Config.parse_args(parser=parser)  # Use your own parser.
 ```
 
 We offer first-class support to Python's `Fraction`, `Decimal`, `complex`, `Path`, and `bool`.
@@ -101,6 +104,7 @@ To fully support JSON import/export and Python's `ArgumentParser`,
       Type arguments for "Literal" must be `None` or a literal value (`int`, `bool`, or `str`).
     - All literals must be in the same type.
   - `list`
+    - `list` type can only accept singleton types aformentioned. `Literal` type cannot be accepted.
 
 Supporting new types may cause some trouble to JSON serialization or `ArgumentParser`.
 For instance, it is very hard to parse an dictionary in command-line,

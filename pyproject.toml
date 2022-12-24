@@ -23,5 +23,11 @@ dynamic = ["version"]
 where = ["."]
 exclude = ["tests"]
 
+[project.urls]
+# homepage = ""
+# documentation = ""
+# changelog = ""
+repository = "https://github.com/int0thewind/rootconfig"
+
 [tool.setuptools.dynamic]
 version = {attr = "rootconfig.__version__"}
