@@ -366,19 +366,3 @@ class RootConfig(ABC):
                 raise TypeError(
                     f'`{field_type}` is not supported by `RootConfig`.'
                 )
-
-
-if __name__ == '__main__':
-    from dataclasses import field
-
-    @dataclass
-    class Config(RootConfig):
-        optimizer: Literal['AdamW', 'SGD']
-        margin: Fraction
-        learning_rate: float = 1e-4
-        flags: list[bool] = field(
-            default_factory=lambda: [True]
-        )
-
-    config = Config.parse_args(
-        ['--optimizer', 'SGD', '--margin', '3/4', '--flags', 'False', 'Fal'])
