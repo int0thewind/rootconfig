@@ -10,6 +10,7 @@ from argparse import ArgumentParser
 from dataclasses import MISSING, asdict, dataclass, fields, is_dataclass
 from decimal import Decimal
 from fractions import Fraction
+from functools import wraps
 from itertools import pairwise
 from pathlib import Path
 from typing import Any, Literal, get_args, get_origin
@@ -260,7 +261,7 @@ class RootConfig(ABC):
         arguments: list[str] | None = None,
         parser: ArgumentParser | None = None
     ):
-        if not fn.__class__.__name__ == 'function':
+        if not isinstance(fn, function):
             raise TypeError(f'Expects {fn} to be a function.')
 
         if json_file is not None and arguments is not None:
@@ -272,8 +273,9 @@ class RootConfig(ABC):
         else:
             config = cls.parse_args(arguments, parser)
 
+        @wraps(fn)
         def new_fn():
-            return fn(config)
+            fn(config)
 
         return new_fn
 
@@ -390,3 +392,13 @@ class RootConfig(ABC):
                 raise TypeError(
                     f'`{field_type}` is not supported by `RootConfig`.'
                 )
+
+
+def is_root_config(cls_or_instance: Any) -> bool:
+    """Check whether a given class is a subclass `RootConfig`
+    or a given instance is an instance of `RootConfig`."""
+    if isinstance(cls_or_instance, type):
+        _is_root_config = issubclass(cls_or_instance, RootConfig)
+    else:
+        _is_root_config = isinstance(cls_or_instance, RootConfig)
+    return is_dataclass(cls_or_instance) and _is_root_config
